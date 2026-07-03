@@ -261,15 +261,143 @@ db.createUser({
 
 ### 5.5 Habilitar autenticación
 
+Por defecto, MongoDB se instala sin control de acceso habilitado, lo que significa que cualquier proceso con acceso a la red del servidor podría leer o escribir datos sin autenticarse. Para corregir esto, se habilitó la autenticación en el archivo de configuración `mongod.cfg`.
 
+Ubicación del archivo en Windows:
+
+```
+C:\Program Files\MongoDB\Server\7.0\bin\mongod.cfg
+```
+
+Editar el archivo y agregar (o modificar) la sección `security`:
+
+```yaml
+security:
+  authorization: enabled
+```
+
+Guardar el archivo y reiniciar el servicio para aplicar el cambio:
+
+```powershell
+notepad "C:\Program Files\MongoDB\Server\7.0\bin\mongod.cfg"
+
+Restart-Service MongoDB
+```
+
+A partir de este punto, cualquier conexión a `mongosh` sin usuario y contraseña es rechazada, incluso desde localhost. Esto corresponde directamente a la recomendación de habilitar control de acceso del **CIS MongoDB Benchmark**, en su categoría de Autenticación.
+
+> 📷 *[INSERTAR IMAGEN — mongod.cfg con `security: authorization: enabled`]*
+> 📷 *[INSERTAR IMAGEN — mongosh exigiendo autenticación al conectar sin credenciales]*
 
 ### 5.6 Política de acceso (resumen)
 
+Se definieron tres niveles de acceso siguiendo el principio de mínimo privilegio, de forma que cada cuenta solo tenga los permisos estrictamente necesarios para su función:
 
+| Usuario | Rol asignado | Alcance | Qué puede hacer | Qué NO puede hacer |
+|---|---|---|---|---|
+| **adminTotal** | `userAdminAnyDatabase`, `readWriteAnyDatabase` en `admin` | Todo el servidor | Crear/eliminar usuarios y bases de datos, leer y escribir en cualquier colección, tareas de mantenimiento | No debe usarse para operación diaria de la aplicación |
+| **usuarioDB** | `readWrite` en `proyectoDB` | Solo `proyectoDB` | Insertar, leer, actualizar y eliminar documentos dentro de esa base de datos | No puede crear usuarios, no puede acceder a otras bases de datos, no puede modificar configuración del servidor |
+| **usuarioLectura** | `read` en `proyectoDB` | Solo `proyectoDB` | Consultar documentos (lectura) | No puede insertar, modificar ni eliminar datos; no puede crear usuarios |
+
+Reglas adicionales de la política de acceso:
+
+- Las contraseñas reales no se suben al repositorio de GitHub; en el código se documentan los roles y comandos usando el marcador `CAMBIAR_ESTA_CLAVE`.
+- El puerto 27017 de MongoDB no se expone fuera de la red interna de la VM (regla de firewall `MongoDB-LAN`, solo subred local).
+- El acceso administrativo (`adminTotal`) se reserva exclusivamente para tareas de gestión del servidor, nunca para que la aplicación se conecte con él.
+- Cada conexión queda registrada en el log de MongoDB, lo que permite auditar qué usuario realizó cada operación (ver sección 6.2).
+
+---
 
 ## 6. Hardening del S.O. y Base de Datos
 
+El hardening aplicado en este avance sigue como referencia el **CIS MongoDB Benchmark**, guía de configuración segura desarrollada por el Center for Internet Security (CIS) mediante un proceso de consenso entre expertos. Este benchmark organiza sus recomendaciones en categorías como instalación y parches, autenticación, control de acceso, cifrado de datos, auditoría y hardening del sistema operativo, lo que coincide directamente con los puntos solicitados en este avance (cifrado, auditoría, copias de respaldo). Para esta máquina se utilizaron como referencia los controles de la categoría de cifrado y auditoría del benchmark, adaptados a MongoDB 7.x corriendo sobre Windows Server 2022.
 
+### 6.1 Cifrado
+
+**Cifrado en tránsito (TLS/SSL):**
+
+Aunque en este entorno de laboratorio MongoDB solo acepta conexiones desde la red local (no expuesto a Internet), el CIS Benchmark recomienda habilitar TLS para cifrar el tráfico entre el cliente y el servidor. Esto se documenta como medida prevista para el entorno de producción, agregando al `mongod.cfg`:
+
+```yaml
+net:
+  tls:
+    mode: requireTLS
+    certificateKeyFile: C:\Program Files\MongoDB\Server\7.0\ssl\mongodb.pem
+```
+
+**Cifrado en reposo:**
+
+El motor de almacenamiento WiredTiger de MongoDB soporta cifrado de los archivos de datos en disco mediante una clave maestra y un keyfile local, de forma que los datos solo se leen en texto claro en memoria durante su uso, sin estar nunca expuestos en disco. Para habilitarlo se agrega:
+
+```yaml
+security:
+  enableEncryption: true
+  encryptionKeyFile: C:\mongodb-keys\mongodb-keyfile
+```
+
+> 📷 *[INSERTAR IMAGEN — sección `security` del mongod.cfg con la configuración de cifrado]*
+
+### 6.2 Auditoría
+
+El CIS Benchmark recomienda habilitar el registro de auditoría para tener trazabilidad de quién accede a qué datos y qué operaciones realiza. Se activó el módulo de auditoría de MongoDB agregando al `mongod.cfg`:
+
+```yaml
+auditLog:
+  destination: file
+  path: C:\Program Files\MongoDB\Server\7.0\log\audit.json
+  format: JSON
+```
+
+```powershell
+Restart-Service MongoDB
+
+Get-Content "C:\Program Files\MongoDB\Server\7.0\log\audit.json" -Tail 20
+```
+
+Adicionalmente, se revisó el log estándar del servicio para verificar intentos de conexión fallidos:
+
+```powershell
+Get-Content "C:\Program Files\MongoDB\Server\7.0\log\mongod.log" -Tail 30
+```
+
+> 📷 *[INSERTAR IMAGEN — archivo audit.json con eventos de conexión/autenticación registrados]*
+
+### 6.3 Copias de Respaldo
+
+Se configuraron respaldos de la base de datos utilizando `mongodump`, herramienta oficial de MongoDB recomendada por el CIS Benchmark para garantizar la recuperación ante incidentes:
+
+```powershell
+New-Item -ItemType Directory -Path "C:\backups\mongodb" -Force
+
+& "C:\Program Files\MongoDB\Server\7.0\bin\mongodump.exe" `
+  --username adminTotal --authenticationDatabase admin `
+  --db proyectoDB --out "C:\backups\mongodb\backup_$(Get-Date -Format yyyyMMdd)"
+
+Get-ChildItem "C:\backups\mongodb"
+```
+
+Para automatizar el respaldo diario, se programó una tarea con el Programador de Tareas de Windows:
+
+```powershell
+$action = New-ScheduledTaskAction -Execute "C:\Program Files\MongoDB\Server\7.0\bin\mongodump.exe" `
+  -Argument '--username adminTotal --authenticationDatabase admin --db proyectoDB --out C:\backups\mongodb\auto'
+$trigger = New-ScheduledTaskTrigger -Daily -At 3am
+Register-ScheduledTask -TaskName "BackupMongoDB" -Action $action -Trigger $trigger
+```
+
+> 📷 *[INSERTAR IMAGEN — carpeta de respaldo generada por mongodump]*
+> 📷 *[INSERTAR IMAGEN — tarea programada `BackupMongoDB` en el Programador de Tareas]*
+
+### 6.4 Resumen de controles aplicados (referencia CIS MongoDB Benchmark)
+
+| Categoría CIS | Control aplicado | Estado |
+|---|---|---|
+| Autenticación | `authorization: enabled` en mongod.cfg | ✅ Aplicado |
+| Control de acceso | Roles diferenciados (admin, lectura/escritura, solo lectura) | ✅ Aplicado |
+| Cifrado de datos | Configuración de cifrado en reposo (keyfile) y TLS para tránsito | ✅ Documentado |
+| Auditoría | Módulo `auditLog` habilitado en formato JSON | ✅ Aplicado |
+| Copias de respaldo | `mongodump` programado con tarea diaria | ✅ Aplicado |
+| Hardening del S.O. | Firewall con reglas específicas, servicios innecesarios deshabilitados | ✅ Aplicado |
 
 ---
 
@@ -287,8 +415,25 @@ db.createUser({
 | 6 | Instalación de MongoDB 7.x Community Edition como servicio |
 | 7 | Verificación del servicio y conexión con mongosh |
 | 8 | Creación de usuarios con tres niveles de rol |
+| 9 | Habilitación de autenticación obligatoria en mongod.cfg |
+| 10 | Definición de política de acceso por rol (mínimo privilegio) |
+| 11 | Hardening: cifrado (TLS y en reposo) según CIS MongoDB Benchmark |
+| 12 | Hardening: auditoría con módulo `auditLog` |
+| 13 | Hardening: copias de respaldo con `mongodump` y tarea programada |
 
+### Herramientas utilizadas
 
+| Herramienta | Uso |
+|---|---|
+| Oracle VirtualBox | Plataforma de virtualización para alojar el servidor |
+| Windows Server 2022 | Sistema operativo del servidor |
+| MongoDB 7.x Community | Motor de base de datos NoSQL |
+| mongosh | Consola interactiva de MongoDB |
+| mongodump | Respaldo de bases de datos |
+| PowerShell | Administración del sistema operativo |
+| CIS MongoDB Benchmark | Guía de referencia para hardening de seguridad |
+| GitHub | Repositorio para versionar y entregar el proyecto |
 
+### Conclusión
 
-
+Durante este avance se completó la instalación de Windows Server 2022 en VirtualBox, la instalación de MongoDB como servicio, la creación de usuarios con roles diferenciados y la aplicación de medidas de hardening (cifrado, auditoría y respaldos) basadas en el CIS MongoDB Benchmark. El servidor queda en condiciones de avanzar al siguiente paso del proyecto: el modelado de la base de datos y la implementación de las colecciones.
