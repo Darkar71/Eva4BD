@@ -1,0 +1,21 @@
+{
+  "name": "comerciotech-app",
+  "version": "1.0.0",
+  "description": "Aplicación web CRUD para ComercioTech conectada a MongoDB",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "audit": "npm audit"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-session": "^1.19.0",
+    "express-validator": "^7.0.1",
+    "mongodb": "^6.3.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
