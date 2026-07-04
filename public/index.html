@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ComercioTech — Panel de Gestión</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- ── Sidebar ─────────────────────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-icon">🛒</span>
+      <span class="logo-text">ComercioTech</span>
+    </div>
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-tab="dashboard">
+        <span class="nav-icon">📊</span><span class="nav-label">Dashboard</span>
+      </button>
+      <button class="nav-item" data-tab="clientes">
+        <span class="nav-icon">👤</span><span class="nav-label">Clientes</span>
+      </button>
+      <button class="nav-item" data-tab="productos">
+        <span class="nav-icon">📦</span><span class="nav-label">Productos</span>
+      </button>
+      <button class="nav-item" data-tab="pedidos">
+        <span class="nav-icon">🧾</span><span class="nav-label">Pedidos</span>
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <span class="db-dot"></span>MongoDB conectado
+    </div>
+  </aside>
+
+  <!-- ── Contenido principal ─────────────────────────────────────────────── -->
+  <div class="main-wrapper">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1 id="page-title">Dashboard</h1>
+      </div>
+      <div class="topbar-right">
+        <span class="topbar-date" id="topbar-date"></span>
+        <span class="topbar-user" id="topbar-user"></span>
+        <div class="topbar-avatar" id="topbar-avatar">--</div>
+        <button class="btn btn-sm btn-secondary" onclick="Auth.logout()">Salir</button>
+      </div>
+    </header>
+
+    <main>
+
+      <!-- ══════════════ DASHBOARD ══════════════ -->
+      <section id="tab-dashboard" class="tab-panel active">
+
+        <!-- KPI Cards -->
+        <div class="kpi-grid">
+          <div class="kpi-card kpi-blue">
+            <div class="kpi-icon">👤</div>
+            <div class="kpi-info">
+              <span class="kpi-label">Clientes</span>
+              <span class="kpi-value" id="kpi-clientes">—</span>
+            </div>
+            <div class="kpi-trend" id="kpi-clientes-trend"></div>
+          </div>
+          <div class="kpi-card kpi-purple">
+            <div class="kpi-icon">📦</div>
+            <div class="kpi-info">
+              <span class="kpi-label">Productos</span>
+              <span class="kpi-value" id="kpi-productos">—</span>
+            </div>
+            <div class="kpi-trend" id="kpi-productos-trend"></div>
+          </div>
+          <div class="kpi-card kpi-green">
+            <div class="kpi-icon">🧾</div>
+            <div class="kpi-info">
+              <span class="kpi-label">Pedidos totales</span>
+              <span class="kpi-value" id="kpi-pedidos">—</span>
+            </div>
+            <div class="kpi-trend" id="kpi-pedidos-trend"></div>
+          </div>
+          <div class="kpi-card kpi-orange">
+            <div class="kpi-icon">💰</div>
+            <div class="kpi-info">
+              <span class="kpi-label">Ingresos totales</span>
+              <span class="kpi-value" id="kpi-ingresos">—</span>
+            </div>
+            <div class="kpi-trend" id="kpi-ingresos-trend"></div>
+          </div>
+        </div>
+
+        <!-- Charts row -->
+        <div class="charts-row">
+          <div class="chart-card chart-big">
+            <div class="chart-header">
+              <h3>Pedidos por mes</h3>
+              <span class="chart-subtitle">Acumulado histórico</span>
+            </div>
+            <div class="chart-body">
+              <canvas id="chart-pedidos"></canvas>
+            </div>
+          </div>
+          <div class="chart-card chart-small">
+            <div class="chart-header">
+              <h3>Estados de pedidos</h3>
+              <span class="chart-subtitle">Distribución actual</span>
+            </div>
+            <div class="chart-body chart-donut-body">
+              <canvas id="chart-estados"></canvas>
+              <div id="chart-estados-legend" class="donut-legend"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent pedidos -->
+        <div class="recent-card">
+          <div class="chart-header">
+            <h3>Pedidos recientes</h3>
+            <button class="btn btn-sm btn-secondary" onclick="activarTab('pedidos')">Ver todos →</button>
+          </div>
+          <div id="recent-pedidos"><p class="hint">Cargando...</p></div>
+        </div>
+
+      </section>
+
+      <!-- ══════════════ CLIENTES ══════════════ -->
+      <section id="tab-clientes" class="tab-panel">
+        <div class="panel-header">
+          <div>
+            <h2>Clientes</h2>
+            <p class="panel-subtitle">Gestión de clientes registrados</p>
+          </div>
+          <button class="btn btn-primary" data-requiere="editor" onclick="Clientes.nuevo()">＋ Nuevo cliente</button>
+        </div>
+        <div class="toolbar">
+          <div class="search-box">
+            <span>🔍</span>
+            <input type="text" id="search-clientes" placeholder="Buscar cliente..." oninput="Clientes.filtrar()" />
+          </div>
+          <button class="btn btn-secondary" onclick="Clientes.listar()">🔄 Actualizar</button>
+        </div>
+        <div id="tabla-clientes" class="tabla-wrap"><p class="hint">Cargando...</p></div>
+      </section>
+
+      <!-- ══════════════ PRODUCTOS ══════════════ -->
+      <section id="tab-productos" class="tab-panel">
+        <div class="panel-header">
+          <div>
+            <h2>Productos</h2>
+            <p class="panel-subtitle">Catálogo de productos disponibles</p>
+          </div>
+          <button class="btn btn-primary" data-requiere="editor" onclick="UI.abrirModal('modal-producto'); document.getElementById('producto-id').value=''; document.getElementById('modal-producto-titulo').textContent='Nuevo Producto';">＋ Nuevo producto</button>
+        </div>
+        <div class="toolbar">
+          <div class="search-box">
+            <span>🔍</span>
+            <input type="text" id="search-productos" placeholder="Buscar producto..." oninput="Productos.filtrar()" />
+          </div>
+          <select id="filtro-categoria" onchange="Productos.listar()">
+            <option value="">Todas las categorías</option>
+            <option value="computacion">Computación</option>
+            <option value="electronica">Electrónica</option>
+            <option value="ropa">Ropa</option>
+            <option value="calzado">Calzado</option>
+          </select>
+          <button class="btn btn-secondary" onclick="Productos.listar()">🔄 Actualizar</button>
+        </div>
+        <div id="tabla-productos" class="tabla-wrap"><p class="hint">Cargando...</p></div>
+      </section>
+
+      <!-- ══════════════ PEDIDOS ══════════════ -->
+      <section id="tab-pedidos" class="tab-panel">
+        <div class="panel-header">
+          <div>
+            <h2>Pedidos</h2>
+            <p class="panel-subtitle">Historial y gestión de pedidos</p>
+          </div>
+          <button class="btn btn-primary" data-requiere="editor" onclick="Pedidos.abrirNuevo()">＋ Nuevo pedido</button>
+        </div>
+        <div class="toolbar">
+          <select id="filtro-estado" onchange="Pedidos.listar()">
+            <option value="">Todos los estados</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="en_proceso">En proceso</option>
+            <option value="enviado">Enviado</option>
+            <option value="entregado">Entregado</option>
+            <option value="cancelado">Cancelado</option>
+          </select>
+          <button class="btn btn-secondary" onclick="Pedidos.listar()">🔄 Actualizar</button>
+        </div>
+        <div id="tabla-pedidos" class="tabla-wrap"><p class="hint">Cargando...</p></div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ── Toast ───────────────────────────────────────────────────────────── -->
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- ══════════════════════ MODALES ══════════════════════════════════════ -->
+
+  <!-- Modal Cliente -->
+  <div id="modal-cliente" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modal-cliente-titulo">Nuevo Cliente</h3>
+        <button class="close-btn" onclick="UI.cerrarModal('modal-cliente')">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="cliente-id" />
+        <div class="form-row">
+          <label>Nombre *<input type="text" id="cliente-nombre" placeholder="María González" /></label>
+          <label>Teléfono *<input type="text" id="cliente-telefono" placeholder="+56912345678" /></label>
+        </div>
+        <label>Email *<input type="email" id="cliente-email" placeholder="maria@email.com" /></label>
+        <div class="form-row">
+          <label>Calle<input type="text" id="cliente-calle" placeholder="Av. Providencia 1234" /></label>
+          <label>Ciudad<input type="text" id="cliente-ciudad" placeholder="Santiago" /></label>
+        </div>
+        <label>Región<input type="text" id="cliente-region" placeholder="Metropolitana" /></label>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="UI.cerrarModal('modal-cliente')">Cancelar</button>
+        <button class="btn btn-primary" onclick="Clientes.guardar()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Producto -->
+  <div id="modal-producto" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modal-producto-titulo">Nuevo Producto</h3>
+        <button class="close-btn" onclick="UI.cerrarModal('modal-producto')">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="producto-id" />
+        <label>Nombre *<input type="text" id="producto-nombre" placeholder="Notebook Lenovo IdeaPad 3" /></label>
+        <div class="form-row">
+          <label>Categoría *
+            <select id="producto-categoria">
+              <option value="computacion">Computación</option>
+              <option value="electronica">Electrónica</option>
+              <option value="ropa">Ropa</option>
+              <option value="calzado">Calzado</option>
+            </select>
+          </label>
+          <label>Stock *<input type="number" id="producto-stock" placeholder="15" min="0" /></label>
+        </div>
+        <label>Precio (CLP) *<input type="number" id="producto-precio" placeholder="399990" min="0" /></label>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="UI.cerrarModal('modal-producto')">Cancelar</button>
+        <button class="btn btn-primary" onclick="Productos.guardar()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Pedido -->
+  <div id="modal-pedido" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Nuevo Pedido</h3>
+        <button class="close-btn" onclick="UI.cerrarModal('modal-pedido')">✕</button>
+      </div>
+      <div class="modal-body">
+        <label>Cliente *<select id="pedido-clienteId"></select></label>
+        <label>Producto *<select id="pedido-productoId" onchange="Pedidos.actualizarPrecio()"></select></label>
+        <div class="form-row">
+          <label>Cantidad *<input type="number" id="pedido-cantidad" value="1" min="1" onchange="Pedidos.actualizarPrecio()" /></label>
+          <label>Subtotal (CLP)<input type="text" id="pedido-subtotal" readonly /></label>
+        </div>
+        <label>Método de pago *
+          <select id="pedido-metodoPago">
+            <option value="tarjeta_credito">Tarjeta de crédito</option>
+            <option value="tarjeta_debito">Tarjeta de débito</option>
+            <option value="transferencia">Transferencia</option>
+            <option value="efectivo">Efectivo</option>
+          </select>
+        </label>
+        <label>Notas<input type="text" id="pedido-notas" placeholder="Instrucciones de entrega..." /></label>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="UI.cerrarModal('modal-pedido')">Cancelar</button>
+        <button class="btn btn-primary" onclick="Pedidos.guardar()">Crear pedido</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Estado -->
+  <div id="modal-estado" class="modal hidden">
+    <div class="modal-box" style="max-width:380px">
+      <div class="modal-header">
+        <h3>Cambiar Estado del Pedido</h3>
+        <button class="close-btn" onclick="UI.cerrarModal('modal-estado')">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="estado-pedido-id" />
+        <label>Nuevo estado
+          <select id="estado-nuevo">
+            <option value="pendiente">🕐 Pendiente</option>
+            <option value="en_proceso">⚙️ En proceso</option>
+            <option value="enviado">🚚 Enviado</option>
+            <option value="entregado">✅ Entregado</option>
+            <option value="cancelado">❌ Cancelado</option>
+          </select>
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="UI.cerrarModal('modal-estado')">Cancelar</button>
+        <button class="btn btn-primary" onclick="Pedidos.cambiarEstado()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
